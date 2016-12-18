@@ -1,65 +1,149 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import random
+import pgrapy
 from math import sqrt
-from math import pow
+from math import ceil
+from math import floor
 
-sensing_range = 15
-wireless_range = 20
 
+class WSNProperties:
+    def __init__(self):
+        self.sensing_range = 13
+        self.wireless_range = 25
 
 class MonitoringArea:
-    def __init__(self, width, height, grid_size):
+    def __init__(self, width, height, grid_size, wsn_properties):
+        self.wsn_prop = wsn_properties
         self.width = width
         self.height = height
         self.grid_size = grid_size
-        self.generate_interesting_points()
+        self.ipoints = pgrapy.PGraph()
+        self.nodes = pgrapy.PGraph()
+        self.__generate_interesting_points()
 
-    def generate_interesting_points(self):
-        self.ipoints = nx.Graph()
-        self.ipoints_pos = {}
-        index = 0
-        for x in range(0, self.width, self.grid_size):
-            for y in range(0, self.height, self.grid_size):
-                self.ipoints.add_node(index)
-                self.ipoints_pos[index] = (x,y)
-                index += 1
+    def __generate_interesting_points(self):
+        yrange = range(0, self.height, self.grid_size)
+        ynum = len(yrange)
+        for y in yrange:
+            for x in range(0, self.width, self.grid_size):
+                index = x + y * ynum
+                self.ipoints.add_node_with_pos(index, x, y, covered_nodes=set())
+                if x > 0:
+                    prev_idx = (x - self.grid_size) + y * ynum
+                    self.ipoints.add_edge(prev_idx, index)
+                if y > 0:
+                    prev_idx = x + (y - self.grid_size) * ynum
+                    self.ipoints.add_edge(prev_idx, index)
+
+    def covered_ipoints(self):
+        covered_ipoints = set()
+        for n in self.nodes.nodes_iter():
+            covered_ipoints.update(self.nodes.node[n]['covered_ipoints'])
+        uncovered_ipoints = set(self.ipoints.node).difference(covered_ipoints)
+        return covered_ipoints, uncovered_ipoints
+
+    def __more_covered_node(self, ip):
+        covered_nodes = list(self.ipoints.node[ip]['covered_nodes'])
+        covered_ipoints_num = [len(self.nodes.node[c]['covered_ipoints']) for c in covered_nodes]
+        m = covered_ipoints_num.index(max(covered_ipoints_num))
+        return covered_nodes[m]
+
+    def significant_nodes(self):
+        significant_nodes = set()
+        for ip in self.ipoints.nodes_iter():
+            if len(self.ipoints.node[ip]['covered_nodes']) >= 1:
+                cn = set(self.ipoints.node[ip]['covered_nodes'])
+                if len(cn.intersection(significant_nodes)) == 0:
+                    n = self.__more_covered_node(ip)
+                    significant_nodes.add(n)
+        return significant_nodes
+
+    def redundant_nodes(self):
+        sn = self.significant_nodes()
+        return set(self.nodes.node).difference(sn)
+
+    def uncovered_area(self):
+        ip_c = self.ipoints.copy()
+        for n in ip_c.nodes():
+            if len(ip_c.node[n]['covered_nodes']) >= 1:
+                ip_c.remove_node(n)
+        return sorted(nx.connected_components(ip_c), key=len, reverse=True)
 
     def draw_area(self):
         # draw interesting points
-        nx.draw(self.ipoints, pos=self.ipoints_pos,
-                node_color='g', node_size=10)
-        nx.draw(self.nodes, pos=self.nodes_pos)
-        nx.draw(self.nodes, pos=self.nodes_pos, node_size=5000, alpha=0.3)
+        nx.draw_networkx_nodes(self.ipoints, pos=self.ipoints.pos,
+                node_color='g', node_size=10, alpha=0.5)
+        #nx.draw(self.nodes, pos=self.nodes.pos, node_size=10000, alpha=0.3)
+        cip, ucip = self.covered_ipoints()
+        sn = self.significant_nodes()
+        nx.draw_networkx_nodes(self.ipoints, pos=self.ipoints.pos, nodelist=ucip, node_color='y', node_size=100, alpha=1.0)
 
+        nx.draw(self.nodes, pos=self.nodes.pos, node_color='b', alpha=0.5)
+        nx.draw(self.nodes, pos=self.nodes.pos, nodelist=sn, node_color='r')
 
-    def __distance(self, pos1, pos2):
-        return sqrt(pow(pos1[0] - pos2[0], 2) + pow(pos1[1] - pos2[1], 2))
-
-    def __add_edges(self, new_s, pos):
-        for s in self.nodes_pos:
-            if wireless_range >= self.__distance(self.nodes_pos[s], pos):
+    def __add_edges(self, new_s):
+        for s in self.nodes.nodes_iter():
+            if self.wsn_prop.wireless_range >= self.nodes.distance(s, new_s):
                 self.nodes.add_edge(s, new_s)
 
+    def __add_node(self, s, x, y):
+        self.nodes.add_node_with_pos(s, x, y, covered_ipoints=set())
+        self.__add_edges(s)
+        covered_ipoints = set()
+        if (y - self.wsn_prop.sensing_range) % self.grid_size != 0:
+            ceil_ = 1
+        else:
+            ceil_ = 0
+        yfrom = max([0, ((y - self.wsn_prop.sensing_range) / self.grid_size + ceil_) * self.grid_size])
+        yto = min([(y + self.wsn_prop.sensing_range) / self.grid_size * self.grid_size + 1, self.height])
+        ynum = len(range(0, self.height, self.grid_size))
+        for yy in range(yfrom, yto, self.grid_size):
+            xsqrt = sqrt(self.wsn_prop.sensing_range * self.wsn_prop.sensing_range - (yy - y) * (yy - y))
+            xfrom = max([int(ceil(x - xsqrt)) / self.grid_size * self.grid_size, 0])
+            xto = min([int(floor(x + xsqrt)) / self.grid_size * self.grid_size + 1, self.width])
+            for xx in range(xfrom, xto, self.grid_size):
+                idx = xx + yy * ynum
+                covered_ipoints.add(idx)
+                self.ipoints.node[idx]['covered_nodes'].add(s)
+        self.nodes.node[s]['covered_ipoints'] = covered_ipoints
+
+    def remove_node(self, s):
+        for ip in self.nodes.node[s]['covered_ipoints']:
+            self.ipoints.node[ip]['covered_nodes'].remove(s)
+        self.nodes.remove_node(s)
+
+    def move_node(self, s, x, y):
+        self.remove_node(s)
+        self.__add_node(s, x, y)
+
     def add_nodes_randomly(self, num_of_nodes):
-        self.nodes = nx.Graph()
-        self.nodes_pos = {}
         for s in range(num_of_nodes):
-            x = random.random() * self.width
-            y = random.random() * self.height
-            self.nodes.add_node(s)
-            self.nodes_pos[s] = (x, y)
-            self.__add_edges(s, (x,y))
+            x = int(random.random() * self.width)
+            y = int(random.random() * self.height)
+            self.__add_node(s, x, y)
 
 
-
-MA = MonitoringArea(100, 100, 2)
-MA.add_nodes_randomly(50)
+wsn = WSNProperties()
+wsn.wireless_range = 30
+wsn.sensing_range = 15
+MA = MonitoringArea(100, 100, 5, wsn)
+MA.add_nodes_randomly(30)
 MA.draw_area()
 
 plt.show()
 
+rn = list(MA.redundant_nodes())
+uncovered_area_graph = MA.uncovered_area()
+i = 0
+for g in uncovered_area_graph:
+    new_x, new_y = MA.ipoints.center_pos(g)
+    if len(rn) > i:
+        MA.move_node(rn[i], new_x, new_y)
+        print 'move_node ', rn[i], new_x, new_y
+        i += 1
 
 
-
+MA.draw_area()
+plt.show()
 

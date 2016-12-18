@@ -87,9 +87,7 @@ class MonitoringArea:
             if self.wsn_prop.wireless_range >= self.nodes.distance(s, new_s):
                 self.nodes.add_edge(s, new_s)
 
-    def __add_node(self, s, x, y):
-        self.nodes.add_node_with_pos(s, x, y, covered_ipoints=set())
-        self.__add_edges(s)
+    def __covered_ipoints(self, x, y):
         covered_ipoints = set()
         if (y - self.wsn_prop.sensing_range) % self.grid_size != 0:
             ceil_ = 1
@@ -105,8 +103,15 @@ class MonitoringArea:
             for xx in range(xfrom, xto, self.grid_size):
                 idx = xx + yy * ynum
                 covered_ipoints.add(idx)
-                self.ipoints.node[idx]['covered_nodes'].add(s)
-        self.nodes.node[s]['covered_ipoints'] = covered_ipoints
+        return covered_ipoints
+
+    def __add_node(self, s, x, y):
+        self.nodes.add_node_with_pos(s, x, y, covered_ipoints=set())
+        self.__add_edges(s)
+        ci = self.__covered_ipoints(x, y)
+        for ip in ci:
+            self.ipoints.node[ip]['covered_nodes'].add(s)
+        self.nodes.node[s]['covered_ipoints'] = ci
 
     def remove_node(self, s):
         for ip in self.nodes.node[s]['covered_ipoints']:

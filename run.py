@@ -1,181 +1,66 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import random
 import networkx as nx
 import matplotlib.pyplot as plt
-import random
 import pgrapy as pg
-from math import sqrt
-from math import ceil
-from math import floor
+import wsn
 
 
-class WSNProperties:
-    def __init__(self):
-        self.sensing_range = 13
-        self.wireless_range = 25
+def make_nodes_randomly(width, height, num_of_nodes):
+    nodes = []
+    for s in range(num_of_nodes):
+        x = int(random.random() * width)
+        y = int(random.random() * height)
+        nodes.append([s, x, y])
+    return nodes
 
 
-class MonitoringArea:
-    def __init__(self, width, height, grid_size, wsn_properties):
-        self.wsn_prop = wsn_properties
-        self.width = width
-        self.height = height
-        self.grid_size = grid_size
-        self.ipoints = nx.Graph()
-        self.nodes = nx.Graph()
-        self.__generate_interesting_points()
-
-    def __generate_interesting_points(self):
-        yrange = range(0, self.height, self.grid_size)
-        ynum = len(yrange)
-        for y in yrange:
-            for x in range(0, self.width, self.grid_size):
-                index = x + y * ynum
-                pg.add_node_with_pos(self.ipoints, index, x, y, covered_nodes=set())
-                if x > 0:
-                    prev_idx = (x - self.grid_size) + y * ynum
-                    self.ipoints.add_edge(prev_idx, index)
-                if y > 0:
-                    prev_idx = x + (y - self.grid_size) * ynum
-                    self.ipoints.add_edge(prev_idx, index)
-
-    def covered_ipoints(self):
-        covered_ipoints = set()
-        for n in self.nodes.nodes_iter():
-            covered_ipoints.update(self.nodes.node[n]['covered_ipoints'])
-        uncovered_ipoints = set(self.ipoints.node).difference(covered_ipoints)
-        return covered_ipoints, uncovered_ipoints
-
-    def __more_covered_node(self, ip):
-        covered_nodes = list(self.ipoints.node[ip]['covered_nodes'])
-        covered_ipoints_num = [len(self.nodes.node[c]['covered_ipoints']) for c in covered_nodes]
-        m = covered_ipoints_num.index(max(covered_ipoints_num))
-        return covered_nodes[m]
-
-    def significant_nodes(self):
-        significant_nodes = set()
-        for ip in self.ipoints.nodes_iter():
-            if len(self.ipoints.node[ip]['covered_nodes']) >= 1:
-                cn = set(self.ipoints.node[ip]['covered_nodes'])
-                if len(cn.intersection(significant_nodes)) == 0:
-                    n = self.__more_covered_node(ip)
-                    significant_nodes.add(n)
-        return significant_nodes
-
-    def redundant_nodes(self):
-        sn = self.significant_nodes()
-        return set(self.nodes.node).difference(sn)
-
-    def uncovered_area(self):
-        ip_c = self.ipoints.copy()
-        for n in ip_c.nodes():
-            if len(ip_c.node[n]['covered_nodes']) >= 1:
-                ip_c.remove_node(n)
-        return nx.connected_component_subgraphs(ip_c, copy=True)
-
-    def draw_area(self):
-        # draw interesting points
-        nx.draw_networkx_nodes(self.ipoints, pos=pg.get_pos_dict(self.ipoints),
-                node_color='g', node_size=10, alpha=0.5)
-        #nx.draw(self.nodes, pos=self.nodes.pos, node_size=10000, alpha=0.3)
-        cip, ucip = self.covered_ipoints()
-        sn = self.significant_nodes()
-        nx.draw_networkx_nodes(self.ipoints, pos=pg.get_pos_dict(self.ipoints), nodelist=ucip, node_color='y', node_size=100, alpha=1.0)
-
-        nx.draw(self.nodes, pos=pg.get_pos_dict(self.nodes), node_color='b', alpha=0.5)
-        nx.draw(self.nodes, pos=pg.get_pos_dict(self.nodes), nodelist=sn, node_color='r')
-
-    def __add_edges(self, new_s):
-        for s in self.nodes.nodes_iter():
-            if self.wsn_prop.wireless_range >= pg.distance(self.nodes, s, new_s):
-                self.nodes.add_edge(s, new_s)
-
-    def __covered_ipoints(self, x, y):
-        covered_ipoints = set()
-        if (y - self.wsn_prop.sensing_range) % self.grid_size != 0:
-            ceil_ = 1
-        else:
-            ceil_ = 0
-        yfrom = max([0, ((y - self.wsn_prop.sensing_range) / self.grid_size + ceil_) * self.grid_size])
-        yto = min([(y + self.wsn_prop.sensing_range) / self.grid_size * self.grid_size + 1, self.height])
-        ynum = len(range(0, self.height, self.grid_size))
-        for yy in range(yfrom, yto, self.grid_size):
-            xsqrt = sqrt(self.wsn_prop.sensing_range * self.wsn_prop.sensing_range - (yy - y) * (yy - y))
-            xfrom = max([int(ceil(x - xsqrt)) / self.grid_size * self.grid_size, 0])
-            xto = min([int(floor(x + xsqrt)) / self.grid_size * self.grid_size + 1, self.width])
-            for xx in range(xfrom, xto, self.grid_size):
-                idx = xx + yy * ynum
-                covered_ipoints.add(idx)
-        return covered_ipoints
-
-    def __add_node(self, s, x, y):
-        pg.add_node_with_pos(self.nodes, s, x, y, covered_ipoints=set())
-        self.__add_edges(s)
-        ci = self.__covered_ipoints(x, y)
-        for ip in ci:
-            self.ipoints.node[ip]['covered_nodes'].add(s)
-        self.nodes.node[s]['covered_ipoints'] = ci
-
-    def remove_node(self, s):
-        for ip in self.nodes.node[s]['covered_ipoints']:
-            self.ipoints.node[ip]['covered_nodes'].remove(s)
-        self.nodes.remove_node(s)
-
-    def move_node(self, s, x, y):
-        self.remove_node(s)
-        self.__add_node(s, x, y)
-
-    def add_nodes_randomly(self, num_of_nodes):
-        for s in range(num_of_nodes):
-            x = int(random.random() * self.width)
-            y = int(random.random() * self.height)
-            self.__add_node(s, x, y)
+def print_stat(monitoring_area):
+    rn = len(monitoring_area.redundant_nodes())
+    uc = sum([n.number_of_nodes() for n in monitoring_area.uncovered_area()])
+    print 'redundant nodes: ', rn, 'uncovered_ipoints: ', uc
 
 
-def best_pos(graph):
-    covered_nodes = 0
-    retpos = pg.center_pos(graph)
-    for n in graph.nodes():
-        x = graph.node[n]['pos'][0]
-        y = graph.node[n]['pos'][1]
-        t = len(pg.nodes_covered_by_circle(graph, x, y, wsn.sensing_range))
-        if t > covered_nodes:
-            covered_nodes = t
-            retpos = (x, y)
-    return retpos
+if __name__ == '__main__':
+    prop = wsn.Properties()
+    prop.wireless_range = 30
+    prop.sensing_range = 15
+    prop.width = 100
+    prop.height = 100
+    prop.grid_size = 3
 
+    nodes = make_nodes_randomly(prop.width, prop.height, 33)
 
+    MA = wsn.MonitoringArea(prop)
+    for n in nodes:
+        MA.add_node(n[0], n[1], n[2])
 
+    print_stat(MA)
 
-wsn = WSNProperties()
-wsn.wireless_range = 30
-wsn.sensing_range = 15
-MA = MonitoringArea(100, 100, 3, wsn)
-MA.add_nodes_randomly(33)
-MA.draw_area()
+    MA.draw_area()
+    plt.show()
 
-plt.show()
+    rn = list(MA.redundant_nodes())
+    uncovered_area_graphs = MA.uncovered_area()
+    uncovered_area_graphs = sorted(uncovered_area_graphs, key=len, reverse=True)
+    for n in rn: # for every node in redundant nodes
+        if len(uncovered_area_graphs) == 0:
+            break
+        g = uncovered_area_graphs[0]
+        new_x, new_y = pg.circle_pos_has_most_nodes(g, prop.sensing_range)
+        MA.move_node(n, new_x, new_y)
+        print 'move_node ', n, new_x, new_y
 
-rn = list(MA.redundant_nodes())
-uncovered_area_graph = MA.uncovered_area()
-uncovered_area_graph = sorted(uncovered_area_graph, key=len, reverse=True)
-for n in rn:
-    if len(uncovered_area_graph) == 0:
-        break
-    g = uncovered_area_graph[0]
-    new_x, new_y = best_pos(g)
-    MA.move_node(n, new_x, new_y)
-    print 'move_node ', n, new_x, new_y
+        covered_nodes = pg.nodes_in_circle(g, pg.Circle(new_x, new_y, prop.sensing_range))
+        g.remove_nodes_from(covered_nodes)
+        sub = nx.connected_component_subgraphs(g, copy=True)
+        del uncovered_area_graphs[0]
+        uncovered_area_graphs.extend(sub)
+        uncovered_area_graphs = sorted(uncovered_area_graphs, key=len, reverse=True)
 
-    covered_nodes = pg.nodes_covered_by_circle(g, new_x, new_y, wsn.sensing_range)
-    g.remove_nodes_from(covered_nodes)
-    sub = nx.connected_component_subgraphs(g, copy=True)
-    del uncovered_area_graph[0]
-    uncovered_area_graph.extend(sub)
-    uncovered_area_graph = sorted(uncovered_area_graph, key=len, reverse=True)
+    print_stat(MA)
 
-
-MA.draw_area()
-plt.show()
-
+    MA.draw_area()
+    plt.show()

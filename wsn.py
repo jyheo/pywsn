@@ -16,11 +16,11 @@ class Properties:
 
 
 class MonitoringArea:
-    def __init__(self, width, height, grid_size, properties):
+    def __init__(self, properties):
         self.wsn_prop = properties
-        self.width = width
-        self.height = height
-        self.grid_size = grid_size
+        self.width = properties.width
+        self.height = properties.height
+        self.grid_size = properties.grid_size
         self.ipoints = nx.Graph()
         self.nodes = nx.Graph()
         self.__generate_interesting_points()
@@ -108,7 +108,7 @@ class MonitoringArea:
                 covered_ipoints.add(idx)
         return covered_ipoints
 
-    def __add_node(self, s, x, y):
+    def add_node(self, s, x, y):
         pg.add_node_with_pos(self.nodes, s, x, y, covered_ipoints=set())
         self.__add_edges(s)
         ci = self.__covered_ipoints(x, y)
@@ -123,10 +123,5 @@ class MonitoringArea:
 
     def move_node(self, s, x, y):
         self.remove_node(s)
-        self.__add_node(s, x, y)
+        self.add_node(s, x, y)
 
-    def add_nodes_randomly(self, num_of_nodes):
-        for s in range(num_of_nodes):
-            x = int(random.random() * self.width)
-            y = int(random.random() * self.height)
-            self.__add_node(s, x, y)

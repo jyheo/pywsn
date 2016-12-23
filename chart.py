@@ -17,8 +17,14 @@ def chart_3d(data, labels = None):
     :param data: list of tuples (x, y, z)
     :return: void
     '''
-    x_pos = [t[0] for t in data]
-    y_pos = [t[1] for t in data]
+    x_val = sorted(set([t[0] for t in data]))
+    y_val = sorted(set([t[1] for t in data]))
+    d = max(len(x_val), len(y_val))
+    dx = float(max(x_val) - min(x_val)) / d * 0.7
+    dy = float(max(y_val) - min(y_val)) / d * 0.7
+
+    x_pos = [t[0] - dx / 2 for t in data]
+    y_pos = [t[1] - dy / 2 for t in data]
     z_height = [t[2] for t in data]
 
     color_tmp = colors_str()
@@ -31,5 +37,13 @@ def chart_3d(data, labels = None):
         ax.set_xlabel(labels[0])
         ax.set_ylabel(labels[1])
         ax.set_zlabel(labels[2])
-    ax.bar3d(x_pos, y_pos, [0]*len(x_pos), 1, 0.5, z_height, color=colors)
+    ax.bar3d(x_pos, y_pos, [0]*len(x_pos), dx, dy, z_height, color=colors)
+    plt.show()
+
+
+def chart_lines(xdata, data):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    for d in data:
+        ax.plot(xdata, d)
     plt.show()

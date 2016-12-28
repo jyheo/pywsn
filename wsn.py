@@ -77,13 +77,13 @@ class MonitoringArea:
         # draw interesting points
         nx.draw_networkx_nodes(self.ipoints, pos=pg.get_pos_dict(self.ipoints),
                 node_color='g', node_size=10, alpha=0.5)
-        #nx.draw(self.nodes, pos=self.nodes.pos, node_size=10000, alpha=0.3)
+        #nx.draw_networkx_nodes(self.nodes, pos=pg.get_pos_dict(self.nodes), node_size=10000, alpha=0.3)
         cip, ucip = self.covered_ipoints()
         sn = self.significant_nodes()
         nx.draw_networkx_nodes(self.ipoints, pos=pg.get_pos_dict(self.ipoints), nodelist=ucip, node_color='y', node_size=100, alpha=1.0)
 
-        nx.draw(self.nodes, pos=pg.get_pos_dict(self.nodes), node_color='b', alpha=0.5)
-        nx.draw(self.nodes, pos=pg.get_pos_dict(self.nodes), nodelist=sn, node_color='r')
+        nx.draw_networkx_nodes(self.nodes, pos=pg.get_pos_dict(self.nodes), node_color='b', alpha=0.5)
+        nx.draw_networkx_nodes(self.nodes, pos=pg.get_pos_dict(self.nodes), nodelist=sn, node_color='r')
 
     def __add_edges(self, new_s):
         for s in self.nodes.nodes_iter():

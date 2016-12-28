@@ -41,9 +41,16 @@ def chart_3d(data, labels = None):
     plt.show()
 
 
-def chart_lines(xdata, data):
+def chart_lines(xdata, data, labels=None, markers=None, legend_labels=None):
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    for d in data:
-        ax.plot(xdata, d)
+    for d in range(len(data)):
+        if markers and legend_labels:
+            ax.plot(xdata, data[d], marker=markers[d], label=legend_labels[d])
+        else:
+            ax.plot(xdata, data[d])
+    if labels is not None:
+        ax.set_xlabel(labels[0])
+        ax.set_ylabel(labels[1])
+    ax.legend(loc=2)
     plt.show()

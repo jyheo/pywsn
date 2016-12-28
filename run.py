@@ -137,7 +137,7 @@ def exp_visual_demo(move_redundant=True):
     prop.height = 100
     prop.grid_size = 5
 
-    nodes = make_nodes_randomly(prop.width, prop.height, 40)
+    nodes = make_nodes_randomly(prop.width, prop.height, 20)
 
     MA = wsn.MonitoringArea(prop)
     for n in nodes:
@@ -210,15 +210,17 @@ def exp4(repeat_count=1):
     exp3(OPT=True)
     blist = []
     alist = []
-    for i in range(20, 31):
+    nodes_range = range(15, 27)
+    for i in nodes_range:
         b, a = exp3(repeat_count, num_of_nodes=i)
         blist.append(100 - b)
         alist.append(100 - a)
-    chart.chart_lines(range(20, 31), [blist, alist])
+    chart.chart_lines(nodes_range, [alist, blist], ('Number of nodes', 'Covered points rate(%)'), markers='o^',
+                      legend_labels=('Proposed', 'Random'))
 
 
 if __name__ == '__main__':
-    #exp_visual_demo(move_redundant=False)
-    #exp1(repeat_count=1)
-    #exp2(repeat_count=1)
-    exp4(repeat_count=10)
+    exp_visual_demo(move_redundant=True)
+    #exp1(repeat_count=10)
+    #exp2(repeat_count=10)
+    #exp4(repeat_count=20)
